@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+  // uncomment next line if you use Prisma <5.10
+  // directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  password    String    
+  role        String    @default("member")
+  isOnline    Boolean   @default(false) // For online status tracking
+  typingIn    Chat[]    @relation("UserTypingStatus") // Tracks which chat the user is typing in
+
+  // Relation with messages
+  messages    Message[]
+
+  // Many-to-many relation with chats (group and direct chats)
+  chats       Chat[]    @relation("UserChats")
+
+  // Relation to Group where user is admin
+  adminGroups Group[]   @relation("GroupAdmin")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Chat {
+  id           String    @id @default(cuid())
+  isGroup      Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  users        User[]    @relation("UserChats")
+  messages     Message[] @relation("ChatMessages")
+
+  // One-to-one relation with the last message
+  lastMessageId String? @unique // Foreign key for last message
+  lastMessage  Message?  @relation("LastMessage", fields: [lastMessageId], references: [id] , onDelete: Cascade)
+
+  // Relation to track users typing in the chat
+  typingUsers  User[]    @relation("UserTypingStatus")
+
+  // Group relation (if it's a group chat)
+  group        Group?    @relation(fields: [groupId], references: [id])
+  groupId      String?
+
+
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  content     String
+  senderId    String
+  chatId      String
+  createdAt   DateTime  @default(now())
+
+  // Many-to-one relation with User (sender)
+  sender      User      @relation(fields: [senderId], references: [id],onDelete: Cascade)
+
+  // Many-to-one relation with Chat
+  chat        Chat      @relation("ChatMessages", fields: [chatId], references: [id],onDelete: Cascade)
+
+  // One-to-one relation with last message
+
+  chatLast    Chat?     @relation("LastMessage") 
+  updatedAt   DateTime  @updatedAt
+}
+
+model Group {
+  id         String    @id @default(cuid())
+  name       String
+  adminId    String     // Foreign key for admin
+  admin      User       @relation("GroupAdmin", fields: [adminId], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // One-to-many relation with chat (as a group is linked to a chat)
+  chat       Chat[]
+}
+
